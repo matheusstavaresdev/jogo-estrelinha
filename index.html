@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Fase 1: A Estrelinha na Janela</title>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser-arcade-physics.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #1a1a1a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container"></div>
+    <script>
+        const config = {
+            type: Phaser.AUTO,
+            width: 360,
+            height: 640,
+            backgroundColor: '#87CEEB',
+            parent: 'game-container',
+            physics: {
+                default: 'arcade',
+                arcade: { debug: false }
+            },
+            scene: {
+                preload: preload,
+                create: create,
+                update: update
+            }
+        };
+
+        const game = new Phaser.Game(config);
+        let personagem;
+
+        function preload() {}
+
+        function create() {
+            this.add.text(20, 20, 'Fase 1: A Estrelinha na Janela', { 
+                fontSize: '16px', 
+                fill: '#000000',
+                fontFamily: 'Arial'
+            });
+
+            // Personagem provisório (Bloco vermelho)
+            personagem = this.add.rectangle(180, 500, 40, 40, 0xff0000);
+        }
+
+        function update() {}
+    </script>
+</body>
+</html>
