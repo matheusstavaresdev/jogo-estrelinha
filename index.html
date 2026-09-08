@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>A Estrelinha na Janela</title>
+    <title>Fase 1: O Mundo da Estrelinha</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser-arcade-physics.min.js"></script>
     <style>
-        body { margin: 0; padding: 0; background-color: #0d0e15; display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        #game-container { position: relative; }
+        body { margin: 0; padding: 0; background-color: #0d0e15; display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow: hidden; }
+        #game-container { position: relative; width: 100vw; height: 100vh; }
     </style>
 </head>
 <body>
@@ -15,120 +15,172 @@
     <script>
         const config = {
             type: Phaser.AUTO,
-            width: 360,
-            height: 640,
-            backgroundColor: '#1a1829',
-            parent: 'game-container',
-            physics: { default: 'arcade', arcade: { debug: false } },
+            scale: {
+                mode: Phaser.Scale.RESIZE,
+                parent: 'game-container',
+                width: '100%',
+                height: '100%'
+            },
+            backgroundColor: '#2d5a27',
+            physics: {
+                default: 'arcade',
+                arcade: { debug: false }
+            },
             scene: { preload: preload, create: create, update: update }
         };
 
         const game = new Phaser.Game(config);
-        let personagem, cursors, actionBtn, dialogueBox, dialogueText, isNearItem = false;
+        let player, cursors, actionBtn, dialogueBox, dialogueText;
         let isPointerDown = false, pointerOrigin = { x: 0, y: 0 }, moveVector = { x: 0, y: 0 };
+        let activeInteractable = null;
 
-        function preload() {}
+        function preload() {
+            // Carregando tileset do mapa e sprite animado
+            this.load.image('tiles', 'https://labs.phaser.io/assets/tilemaps/tiles/catastrophi_tiles.png');
+            this.load.spritesheet('player', 'https://labs.phaser.io/assets/sprites/spaceman.png', { frameWidth: 16, frameHeight: 16 });
+        }
 
         function create() {
             const scene = this;
+            const WORLD_SIZE = 1600;
 
-            // --- CENÁRIO ---
-            let chao = scene.add.graphics();
-            chao.fillStyle(0xc29b68, 1); chao.fillRect(0, 120, 360, 520);
-            chao.lineStyle(2, 0xa07a4a, 0.4);
-            for (let y = 120; y < 640; y += 40) chao.lineBetween(0, y, 360, y);
+            // 1. Configurar Limites do Mundo
+            scene.physics.world.setBounds(0, 0, WORLD_SIZE, WORLD_SIZE);
 
-            let parede = scene.add.graphics();
-            parede.fillStyle(0x4a3b63, 1); parede.fillRect(0, 0, 360, 120);
+            // 2. Criar Chão Decorado (Grama e Caminhos)
+            let ground = scene.add.graphics();
+            ground.fillStyle(0x408035, 1);
+            ground.fillRect(0, 0, WORLD_SIZE, WORLD_SIZE);
 
-            // Janela e Estrelinha
-            let janela = scene.add.graphics();
-            janela.fillStyle(0x131a2e, 1); janela.fillRect(220, 15, 110, 95);
-            janela.lineStyle(4, 0xffd166, 1); janela.strokeRect(220, 15, 110, 95);
+            // Desenhar caminhos de terra
+            ground.fillStyle(0x8a6f47, 1);
+            ground.fillRect(200, 750, 1200, 100); // Estrada principal
+            ground.fillRect(750, 200, 100, 1200); // Cruzamento
 
-            let estrela = scene.add.text(275, 62, '⭐', { fontSize: '38px' }).setOrigin(0.5);
-            scene.tweens.add({ targets: estrela, scale: { from: 0.8, to: 1.2 }, duration: 800, yoyo: true, repeat: -1 });
+            // Detalhes de flores/árvores espalhadas pelo mapa
+            for (let i = 0; i < 150; i++) {
+                let x = Phaser.Math.Between(50, WORLD_SIZE - 50);
+                let y = Phaser.Math.Between(50, WORLD_SIZE - 50);
+                let size = Phaser.Math.Between(15, 35);
+                scene.add.circle(x, y, size, 0x1e4219, 0.6); // Árvores/Arbustos
+            }
 
-            // Ponto de Interação (Brilho no chão)
-            let interacaoZone = scene.add.circle(275, 150, 25, 0xffd166, 0.3);
-            scene.tweens.add({ targets: interacaoZone, alpha: { from: 0.2, to: 0.6 }, duration: 600, yoyo: true, repeat: -1 });
+            // 3. Pontos de Interesse (Locais para Explorar no Mapa)
+            const locais = [
+                { x: 300, y: 700, title: "🌸 O Jardim da Memória", text: "Você encontrou uma flor plantada no dia em que souberam da chegada da Olívia!" },
+                { x: 1300, y: 700, title: "📜 O Baú do Tio Júlio", text: "Um par de raquetes de BitTennis e a chave de um carro... O que será isso?" },
+                { x: 800, y: 300, title: "⭐ A Estrela Guia", text: "A Estrelinha brilha intensamente na janela! Ela está esperando por você..." }
+            ];
 
-            // --- PERSONAGEM ---
-            personagem = scene.add.container(180, 400);
-            let sombra = scene.add.ellipse(0, 18, 28, 10, 0x000000, 0.3);
-            let corpo = scene.add.circle(0, 0, 16, 0xef476f);
-            let cabeca = scene.add.circle(0, -14, 13, 0xffd166);
-            personagem.add([sombra, corpo, cabeca]);
-            scene.physics.world.enable(personagem);
-            personagem.body.setCollideWorldBounds(true);
-            personagem.body.setSize(30, 30).setOffset(-15, -15);
-
-            // --- INTERFACE (UI) ---
-            // Botão de Ação Contextual (Mobile)
-            actionBtn = scene.add.container(300, 560);
-            let btnBg = scene.add.circle(0, 0, 30, 0xffd166).setInteractive();
-            let btnText = scene.add.text(0, 0, '🔍', { fontSize: '24px' }).setOrigin(0.5);
-            actionBtn.add([btnBg, btnText]);
-            actionBtn.setVisible(false);
-
-            // Caixa de Diálogo Pop-up
-            dialogueBox = scene.add.container(180, 320);
-            let bgBox = scene.add.rectangle(0, 0, 320, 180, 0x0d0e15, 0.95);
-            bgBox.setStrokeStyle(3, 0xffd166);
-            dialogueText = scene.add.text(-140, -70, '', { fontSize: '13px', fill: '#ffffff', wordWrap: { width: 280 } });
-            let closeHint = scene.add.text(0, 65, '[ Toque para fechar ]', { fontSize: '11px', fill: '#ffd166' }).setOrigin(0.5);
-            dialogueBox.add([bgBox, dialogueText, closeHint]);
-            dialogueBox.setVisible(false);
-
-            // Clique no Botão de Ação
-            btnBg.on('pointerdown', () => {
-                if (isNearItem && !dialogueBox.visible) {
-                    dialogueText.setText("✨ A Estrelinha Brilhante\n\n'Antes de você nascer, Deus já cuidava de cada detalhe com amor...'\n\n🎉 LEMBRANÇA DESBLOQUEADA!\nItem adicionado ao Álbum da Família.");
-                    dialogueBox.setVisible(true);
-                }
+            locais.forEach(loc => {
+                let zone = scene.add.circle(loc.x, loc.y, 40, 0xffd166, 0.4);
+                scene.add.text(loc.x, loc.y - 50, loc.title, { fontSize: '14px', fill: '#ffffff', backgroundColor: '#000000aa', padding: {x:6, y:3} }).setOrigin(0.5);
+                scene.tweens.add({ targets: zone, alpha: { from: 0.2, to: 0.7 }, scale: { from: 0.9, to: 1.1 }, duration: 800, yoyo: true, repeat: -1 });
+                zone.data = loc;
             });
 
-            // Fechar Diálogo
-            bgBox.setInteractive().on('pointerdown', () => dialogueBox.setVisible(false));
+            // 4. Jogador
+            player = scene.physics.add.sprite(800, 800, 'player', 0);
+            player.setScale(2.5);
+            player.setCollideWorldBounds(true);
 
-            // Controles Touch / Teclado
+            // Animações
+            scene.anims.create({ key: 'walk', frames: scene.anims.generateFrameNumbers('player', { start: 0, end: 3 }), frameRate: 8, repeat: -1 });
+
+            // 5. Câmera Seguindo o Jogador
+            scene.cameras.main.setBounds(0, 0, WORLD_SIZE, WORLD_SIZE);
+            scene.cameras.main.startFollow(player, true, 0.08, 0.08);
+
+            // 6. UI Fixa na Tela (Botão e Diálogos)
+            setupUI(scene, locais);
+
             cursors = scene.input.keyboard.createCursorKeys();
-            scene.input.on('pointerdown', (p) => { if(p.y > 120 && p.y < 480) { isPointerDown = true; pointerOrigin = { x: p.x, y: p.y }; } });
+
+            // Touch Joystick de Campo
+            scene.input.on('pointerdown', (p) => {
+                if (p.x < scene.cameras.main.width - 100) {
+                    isPointerDown = true;
+                    pointerOrigin = { x: p.x, y: p.y };
+                }
+            });
             scene.input.on('pointermove', (p) => {
                 if (isPointerDown) {
                     let d = Phaser.Math.Distance.Between(pointerOrigin.x, pointerOrigin.y, p.x, p.y);
                     let a = Phaser.Math.Angle.Between(pointerOrigin.x, pointerOrigin.y, p.x, p.y);
-                    moveVector = { x: Math.cos(a) * Math.min(d/40, 1), y: Math.sin(a) * Math.min(d/40, 1) };
+                    moveVector = { x: Math.cos(a) * Math.min(d / 40, 1), y: Math.sin(a) * Math.min(d / 40, 1) };
                 }
             });
             scene.input.on('pointerup', () => { isPointerDown = false; moveVector = { x: 0, y: 0 }; });
         }
 
+        function setupUI(scene, locais) {
+            // Container da UI preso à Câmera
+            let uiContainer = scene.add.container(0, 0).setScrollFactor(0);
+
+            // Botão de Interagir
+            actionBtn = scene.add.container(scene.cameras.main.width - 70, scene.cameras.main.height - 70).setScrollFactor(0);
+            let btnBg = scene.add.circle(0, 0, 35, 0xffd166).setInteractive();
+            let btnText = scene.add.text(0, 0, '🔍', { fontSize: '28px' }).setOrigin(0.5);
+            actionBtn.add([btnBg, btnText]);
+            actionBtn.setVisible(false);
+
+            // Caixa de Diálogo
+            dialogueBox = scene.add.container(scene.cameras.main.width / 2, scene.cameras.main.height - 120).setScrollFactor(0);
+            let bgBox = scene.add.rectangle(0, 0, 340, 140, 0x0d0e15, 0.95).setStrokeStyle(3, 0xffd166).setInteractive();
+            dialogueText = scene.add.text(-150, -50, '', { fontSize: '13px', fill: '#ffffff', wordWrap: { width: 300 } });
+            let closeText = scene.add.text(0, 45, '[ Toque para fechar ]', { fontSize: '11px', fill: '#ffd166' }).setOrigin(0.5);
+            dialogueBox.add([bgBox, dialogueText, closeText]);
+            dialogueBox.setVisible(false);
+
+            btnBg.on('pointerdown', () => {
+                if (activeInteractable) {
+                    dialogueText.setText(`${activeInteractable.title}\n\n"${activeInteractable.text}"`);
+                    dialogueBox.setVisible(true);
+                }
+            });
+
+            bgBox.on('pointerdown', () => dialogueBox.setVisible(false));
+            uiContainer.add([actionBtn, dialogueBox]);
+        }
+
         function update() {
-            const speed = 160;
-            personagem.body.setVelocity(0);
+            const speed = 200;
+            player.setVelocity(0);
 
             if (!dialogueBox.visible) {
-                if (cursors.left.isDown) personagem.body.setVelocityX(-speed);
-                else if (cursors.right.isDown) personagem.body.setVelocityX(speed);
-                if (cursors.up.isDown) personagem.body.setVelocityY(-speed);
-                else if (cursors.down.isDown) personagem.body.setVelocityY(speed);
+                let moving = false;
+                if (cursors.left.isDown) { player.setVelocityX(-speed); moving = true; }
+                else if (cursors.right.isDown) { player.setVelocityX(speed); moving = true; }
+                if (cursors.up.isDown) { player.setVelocityY(-speed); moving = true; }
+                else if (cursors.down.isDown) { player.setVelocityY(speed); moving = true; }
 
                 if (isPointerDown) {
-                    personagem.body.setVelocityX(moveVector.x * speed);
-                    personagem.body.setVelocityY(moveVector.y * speed);
+                    player.setVelocityX(moveVector.x * speed);
+                    player.setVelocityY(moveVector.y * speed);
+                    moving = true;
                 }
+
+                if (moving) player.anims.play('walk', true);
+                else player.anims.stop();
             }
 
-            // Checar proximidade da Janela (Estrelinha)
-            let dist = Phaser.Math.Distance.Between(personagem.x, personagem.y, 275, 150);
-            if (dist < 45) {
-                isNearItem = true;
-                actionBtn.setVisible(true);
-            } else {
-                isNearItem = false;
-                if (!dialogueBox.visible) actionBtn.setVisible(false);
-            }
+            // Checar proximidade dos pontos de interesse
+            const locais = [
+                { x: 300, y: 700, title: "🌸 O Jardim da Memória", text: "Você encontrou uma flor plantada no dia em que souberam da chegada da Olívia!" },
+                { x: 1300, y: 700, title: "📜 O Baú do Tio Júlio", text: "Um par de raquetes de BitTennis e a chave de um carro... O que será isso?" },
+                { x: 800, y: 300, title: "⭐ A Estrela Guia", text: "A Estrelinha brilha intensamente! Ela mostra o caminho do amor que aguarda a Olívia..." }
+            ];
+
+            let nearAny = false;
+            locais.forEach(loc => {
+                let dist = Phaser.Math.Distance.Between(player.x, player.y, loc.x, loc.y);
+                if (dist < 60) {
+                    nearAny = true;
+                    activeInteractable = loc;
+                }
+            });
+
+            actionBtn.setVisible(nearAny);
         }
     </script>
 </body>
