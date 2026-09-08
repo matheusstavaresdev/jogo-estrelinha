@@ -9,12 +9,13 @@
         body {
             margin: 0;
             padding: 0;
-            background-color: #1a1a1a;
+            background-color: #121212;
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
             overflow: hidden;
+            font-family: Arial, sans-serif;
         }
     </style>
 </head>
@@ -25,7 +26,7 @@
             type: Phaser.AUTO,
             width: 360,
             height: 640,
-            backgroundColor: '#87CEEB',
+            backgroundColor: '#1e1e24',
             parent: 'game-container',
             physics: {
                 default: 'arcade',
@@ -40,21 +41,140 @@
 
         const game = new Phaser.Game(config);
         let personagem;
+        let cursors;
+        let isPointerDown = false;
+        let pointerOrigin = { x: 0, y: 0 };
+        let moveVector = { x: 0, y: 0 };
 
         function preload() {}
 
         function create() {
-            this.add.text(20, 20, 'Fase 1: A Estrelinha na Janela', { 
-                fontSize: '16px', 
-                fill: '#000000',
-                fontFamily: 'Arial'
+            const scene = this;
+
+            // --- CENÁRIO DO QUARTO ---
+            // Parede
+            let parede = scene.add.graphics();
+            parede.fillStyle(0x7a68a6, 1);
+            parede.fillRect(0, 0, 360, 140);
+
+            // Rodapé
+            let rodape = scene.add.graphics();
+            rodape.fillStyle(0x4a2e1b, 1);
+            rodape.fillRect(0, 135, 360, 10);
+
+            // Chão de Madeira
+            let chao = scene.add.graphics();
+            chao.fillStyle(0xdfab68, 1);
+            chao.fillRect(0, 145, 360, 495);
+
+            // Linhas das tábuas do chão
+            chao.lineStyle(2, 0xbe8340, 0.5);
+            for (let y = 145; y < 640; y += 45) {
+                chao.lineBetween(0, y, 360, y);
+            }
+
+            // Janela com Céu Noturno
+            let janela = scene.add.graphics();
+            janela.fillStyle(0x1d2d44, 1);
+            janela.fillRect(230, 20, 100, 90);
+            janela.lineStyle(4, 0xffffff, 1);
+            janela.strokeRect(230, 20, 100, 90);
+
+            // Estrelinha Flutuando na Janela
+            let estrela = scene.add.text(280, 65, '⭐', { fontSize: '32px' }).setOrigin(0.5);
+            scene.tweens.add({
+                targets: estrela,
+                scale: { from: 0.8, to: 1.2 },
+                alpha: { from: 0.7, to: 1 },
+                duration: 900,
+                yoyo: true,
+                repeat: -1
             });
 
-            // Personagem provisório (Bloco vermelho)
-            personagem = this.add.rectangle(180, 500, 40, 40, 0xff0000);
+            // Cama
+            let cama = scene.add.graphics();
+            cama.fillStyle(0xe63946, 1);
+            cama.fillRoundedRect(20, 160, 90, 130, 8);
+            cama.fillStyle(0xffffff, 1); // Travesseiro
+            cama.fillRoundedRect(30, 170, 70, 30, 5);
+
+            // Tapete Oval
+            let tapete = scene.add.graphics();
+            tapete.fillStyle(0x2a9d8f, 0.8);
+            tapete.fillEllipse(180, 420, 180, 100);
+
+            // --- PERSONAGEM ---
+            personagem = scene.add.container(180, 420);
+            
+            let sombra = scene.add.ellipse(0, 18, 28, 10, 0x000000, 0.3);
+            let corpo = scene.add.circle(0, 0, 16, 0xffb703);
+            let cabeca = scene.add.circle(0, -14, 13, 0xffddd2);
+            let cabelo = scene.add.circle(0, -18, 14, 0x5c3d2e);
+            
+            personagem.add([sombra, corpo, cabeca, cabelo]);
+            scene.physics.world.enable(personagem);
+            personagem.body.setCollideWorldBounds(true);
+            personagem.body.setSize(28, 28);
+            personagem.body.setOffset(-14, -14);
+
+            // Título
+            scene.add.text(180, 15, '✨ A Estrelinha na Janela', { 
+                fontSize: '15px', 
+                fill: '#ffffff',
+                fontStyle: 'bold',
+                backgroundColor: '#00000088',
+                padding: { x: 10, y: 5 }
+            }).setOrigin(0.5, 0);
+
+            // Dica de Controle
+            scene.add.text(180, 610, 'Use as setas do teclado ou arraste o mouse/dedo', { 
+                fontSize: '11px', 
+                fill: '#555555' 
+            }).setOrigin(0.5);
+
+            // --- CONTROLES ---
+            cursors = scene.input.keyboard.createCursorKeys();
+
+            scene.input.on('pointerdown', function (pointer) {
+                isPointerDown = true;
+                pointerOrigin.x = pointer.x;
+                pointerOrigin.y = pointer.y;
+            });
+
+            scene.input.on('pointermove', function (pointer) {
+                if (isPointerDown) {
+                    let dist = Phaser.Math.Distance.Between(pointerOrigin.x, pointerOrigin.y, pointer.x, pointer.y);
+                    let angle = Phaser.Math.Angle.Between(pointerOrigin.x, pointerOrigin.y, pointer.x, pointer.y);
+                    let clampDist = Math.min(dist, 50);
+
+                    moveVector.x = Math.cos(angle) * (clampDist / 50);
+                    moveVector.y = Math.sin(angle) * (clampDist / 50);
+                }
+            });
+
+            scene.input.on('pointerup', function () {
+                isPointerDown = false;
+                moveVector = { x: 0, y: 0 };
+            });
         }
 
-        function update() {}
+        function update() {
+            const speed = 150;
+            personagem.body.setVelocity(0);
+
+            // Teclado
+            if (cursors.left.isDown) personagem.body.setVelocityX(-speed);
+            else if (cursors.right.isDown) personagem.body.setVelocityX(speed);
+
+            if (cursors.up.isDown) personagem.body.setVelocityY(-speed);
+            else if (cursors.down.isDown) personagem.body.setVelocityY(speed);
+
+            // Touch / Mouse
+            if (isPointerDown) {
+                personagem.body.setVelocityX(moveVector.x * speed);
+                personagem.body.setVelocityY(moveVector.y * speed);
+            }
+        }
     </script>
 </body>
 </html>
