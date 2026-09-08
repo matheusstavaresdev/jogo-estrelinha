@@ -3,20 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Fase 1: A Estrelinha na Janela</title>
+    <title>A Estrelinha na Janela</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser-arcade-physics.min.js"></script>
     <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: #121212;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            overflow: hidden;
-            font-family: Arial, sans-serif;
-        }
+        body { margin: 0; padding: 0; background-color: #0d0e15; display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        #game-container { position: relative; }
     </style>
 </head>
 <body>
@@ -26,153 +17,117 @@
             type: Phaser.AUTO,
             width: 360,
             height: 640,
-            backgroundColor: '#1e1e24',
+            backgroundColor: '#1a1829',
             parent: 'game-container',
-            physics: {
-                default: 'arcade',
-                arcade: { debug: false }
-            },
-            scene: {
-                preload: preload,
-                create: create,
-                update: update
-            }
+            physics: { default: 'arcade', arcade: { debug: false } },
+            scene: { preload: preload, create: create, update: update }
         };
 
         const game = new Phaser.Game(config);
-        let personagem;
-        let cursors;
-        let isPointerDown = false;
-        let pointerOrigin = { x: 0, y: 0 };
-        let moveVector = { x: 0, y: 0 };
+        let personagem, cursors, actionBtn, dialogueBox, dialogueText, isNearItem = false;
+        let isPointerDown = false, pointerOrigin = { x: 0, y: 0 }, moveVector = { x: 0, y: 0 };
 
         function preload() {}
 
         function create() {
             const scene = this;
 
-            // --- CENÁRIO DO QUARTO ---
-            // Parede
-            let parede = scene.add.graphics();
-            parede.fillStyle(0x7a68a6, 1);
-            parede.fillRect(0, 0, 360, 140);
-
-            // Rodapé
-            let rodape = scene.add.graphics();
-            rodape.fillStyle(0x4a2e1b, 1);
-            rodape.fillRect(0, 135, 360, 10);
-
-            // Chão de Madeira
+            // --- CENÁRIO ---
             let chao = scene.add.graphics();
-            chao.fillStyle(0xdfab68, 1);
-            chao.fillRect(0, 145, 360, 495);
+            chao.fillStyle(0xc29b68, 1); chao.fillRect(0, 120, 360, 520);
+            chao.lineStyle(2, 0xa07a4a, 0.4);
+            for (let y = 120; y < 640; y += 40) chao.lineBetween(0, y, 360, y);
 
-            // Linhas das tábuas do chão
-            chao.lineStyle(2, 0xbe8340, 0.5);
-            for (let y = 145; y < 640; y += 45) {
-                chao.lineBetween(0, y, 360, y);
-            }
+            let parede = scene.add.graphics();
+            parede.fillStyle(0x4a3b63, 1); parede.fillRect(0, 0, 360, 120);
 
-            // Janela com Céu Noturno
+            // Janela e Estrelinha
             let janela = scene.add.graphics();
-            janela.fillStyle(0x1d2d44, 1);
-            janela.fillRect(230, 20, 100, 90);
-            janela.lineStyle(4, 0xffffff, 1);
-            janela.strokeRect(230, 20, 100, 90);
+            janela.fillStyle(0x131a2e, 1); janela.fillRect(220, 15, 110, 95);
+            janela.lineStyle(4, 0xffd166, 1); janela.strokeRect(220, 15, 110, 95);
 
-            // Estrelinha Flutuando na Janela
-            let estrela = scene.add.text(280, 65, '⭐', { fontSize: '32px' }).setOrigin(0.5);
-            scene.tweens.add({
-                targets: estrela,
-                scale: { from: 0.8, to: 1.2 },
-                alpha: { from: 0.7, to: 1 },
-                duration: 900,
-                yoyo: true,
-                repeat: -1
-            });
+            let estrela = scene.add.text(275, 62, '⭐', { fontSize: '38px' }).setOrigin(0.5);
+            scene.tweens.add({ targets: estrela, scale: { from: 0.8, to: 1.2 }, duration: 800, yoyo: true, repeat: -1 });
 
-            // Cama
-            let cama = scene.add.graphics();
-            cama.fillStyle(0xe63946, 1);
-            cama.fillRoundedRect(20, 160, 90, 130, 8);
-            cama.fillStyle(0xffffff, 1); // Travesseiro
-            cama.fillRoundedRect(30, 170, 70, 30, 5);
-
-            // Tapete Oval
-            let tapete = scene.add.graphics();
-            tapete.fillStyle(0x2a9d8f, 0.8);
-            tapete.fillEllipse(180, 420, 180, 100);
+            // Ponto de Interação (Brilho no chão)
+            let interacaoZone = scene.add.circle(275, 150, 25, 0xffd166, 0.3);
+            scene.tweens.add({ targets: interacaoZone, alpha: { from: 0.2, to: 0.6 }, duration: 600, yoyo: true, repeat: -1 });
 
             // --- PERSONAGEM ---
-            personagem = scene.add.container(180, 420);
-            
+            personagem = scene.add.container(180, 400);
             let sombra = scene.add.ellipse(0, 18, 28, 10, 0x000000, 0.3);
-            let corpo = scene.add.circle(0, 0, 16, 0xffb703);
-            let cabeca = scene.add.circle(0, -14, 13, 0xffddd2);
-            let cabelo = scene.add.circle(0, -18, 14, 0x5c3d2e);
-            
-            personagem.add([sombra, corpo, cabeca, cabelo]);
+            let corpo = scene.add.circle(0, 0, 16, 0xef476f);
+            let cabeca = scene.add.circle(0, -14, 13, 0xffd166);
+            personagem.add([sombra, corpo, cabeca]);
             scene.physics.world.enable(personagem);
             personagem.body.setCollideWorldBounds(true);
-            personagem.body.setSize(28, 28);
-            personagem.body.setOffset(-14, -14);
+            personagem.body.setSize(30, 30).setOffset(-15, -15);
 
-            // Título
-            scene.add.text(180, 15, '✨ A Estrelinha na Janela', { 
-                fontSize: '15px', 
-                fill: '#ffffff',
-                fontStyle: 'bold',
-                backgroundColor: '#00000088',
-                padding: { x: 10, y: 5 }
-            }).setOrigin(0.5, 0);
+            // --- INTERFACE (UI) ---
+            // Botão de Ação Contextual (Mobile)
+            actionBtn = scene.add.container(300, 560);
+            let btnBg = scene.add.circle(0, 0, 30, 0xffd166).setInteractive();
+            let btnText = scene.add.text(0, 0, '🔍', { fontSize: '24px' }).setOrigin(0.5);
+            actionBtn.add([btnBg, btnText]);
+            actionBtn.setVisible(false);
 
-            // Dica de Controle
-            scene.add.text(180, 610, 'Use as setas do teclado ou arraste o mouse/dedo', { 
-                fontSize: '11px', 
-                fill: '#555555' 
-            }).setOrigin(0.5);
+            // Caixa de Diálogo Pop-up
+            dialogueBox = scene.add.container(180, 320);
+            let bgBox = scene.add.rectangle(0, 0, 320, 180, 0x0d0e15, 0.95);
+            bgBox.setStrokeStyle(3, 0xffd166);
+            dialogueText = scene.add.text(-140, -70, '', { fontSize: '13px', fill: '#ffffff', wordWrap: { width: 280 } });
+            let closeHint = scene.add.text(0, 65, '[ Toque para fechar ]', { fontSize: '11px', fill: '#ffd166' }).setOrigin(0.5);
+            dialogueBox.add([bgBox, dialogueText, closeHint]);
+            dialogueBox.setVisible(false);
 
-            // --- CONTROLES ---
-            cursors = scene.input.keyboard.createCursorKeys();
-
-            scene.input.on('pointerdown', function (pointer) {
-                isPointerDown = true;
-                pointerOrigin.x = pointer.x;
-                pointerOrigin.y = pointer.y;
-            });
-
-            scene.input.on('pointermove', function (pointer) {
-                if (isPointerDown) {
-                    let dist = Phaser.Math.Distance.Between(pointerOrigin.x, pointerOrigin.y, pointer.x, pointer.y);
-                    let angle = Phaser.Math.Angle.Between(pointerOrigin.x, pointerOrigin.y, pointer.x, pointer.y);
-                    let clampDist = Math.min(dist, 50);
-
-                    moveVector.x = Math.cos(angle) * (clampDist / 50);
-                    moveVector.y = Math.sin(angle) * (clampDist / 50);
+            // Clique no Botão de Ação
+            btnBg.on('pointerdown', () => {
+                if (isNearItem && !dialogueBox.visible) {
+                    dialogueText.setText("✨ A Estrelinha Brilhante\n\n'Antes de você nascer, Deus já cuidava de cada detalhe com amor...'\n\n🎉 LEMBRANÇA DESBLOQUEADA!\nItem adicionado ao Álbum da Família.");
+                    dialogueBox.setVisible(true);
                 }
             });
 
-            scene.input.on('pointerup', function () {
-                isPointerDown = false;
-                moveVector = { x: 0, y: 0 };
+            // Fechar Diálogo
+            bgBox.setInteractive().on('pointerdown', () => dialogueBox.setVisible(false));
+
+            // Controles Touch / Teclado
+            cursors = scene.input.keyboard.createCursorKeys();
+            scene.input.on('pointerdown', (p) => { if(p.y > 120 && p.y < 480) { isPointerDown = true; pointerOrigin = { x: p.x, y: p.y }; } });
+            scene.input.on('pointermove', (p) => {
+                if (isPointerDown) {
+                    let d = Phaser.Math.Distance.Between(pointerOrigin.x, pointerOrigin.y, p.x, p.y);
+                    let a = Phaser.Math.Angle.Between(pointerOrigin.x, pointerOrigin.y, p.x, p.y);
+                    moveVector = { x: Math.cos(a) * Math.min(d/40, 1), y: Math.sin(a) * Math.min(d/40, 1) };
+                }
             });
+            scene.input.on('pointerup', () => { isPointerDown = false; moveVector = { x: 0, y: 0 }; });
         }
 
         function update() {
-            const speed = 150;
+            const speed = 160;
             personagem.body.setVelocity(0);
 
-            // Teclado
-            if (cursors.left.isDown) personagem.body.setVelocityX(-speed);
-            else if (cursors.right.isDown) personagem.body.setVelocityX(speed);
+            if (!dialogueBox.visible) {
+                if (cursors.left.isDown) personagem.body.setVelocityX(-speed);
+                else if (cursors.right.isDown) personagem.body.setVelocityX(speed);
+                if (cursors.up.isDown) personagem.body.setVelocityY(-speed);
+                else if (cursors.down.isDown) personagem.body.setVelocityY(speed);
 
-            if (cursors.up.isDown) personagem.body.setVelocityY(-speed);
-            else if (cursors.down.isDown) personagem.body.setVelocityY(speed);
+                if (isPointerDown) {
+                    personagem.body.setVelocityX(moveVector.x * speed);
+                    personagem.body.setVelocityY(moveVector.y * speed);
+                }
+            }
 
-            // Touch / Mouse
-            if (isPointerDown) {
-                personagem.body.setVelocityX(moveVector.x * speed);
-                personagem.body.setVelocityY(moveVector.y * speed);
+            // Checar proximidade da Janela (Estrelinha)
+            let dist = Phaser.Math.Distance.Between(personagem.x, personagem.y, 275, 150);
+            if (dist < 45) {
+                isNearItem = true;
+                actionBtn.setVisible(true);
+            } else {
+                isNearItem = false;
+                if (!dialogueBox.visible) actionBtn.setVisible(false);
             }
         }
     </script>
