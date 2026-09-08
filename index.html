@@ -3,102 +3,146 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Fase 1: O Mundo da Estrelinha</title>
+    <title>A Jornada da Clara & Olívia</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser-arcade-physics.min.js"></script>
     <style>
-        body { margin: 0; padding: 0; background-color: #0d0e15; display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow: hidden; }
+        body { margin: 0; padding: 0; background-color: #0b0d12; display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         #game-container { position: relative; width: 100vw; height: 100vh; }
+        
+        /* Modal do Cartão de Memória */
+        #memory-modal {
+            display: none;
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 85%; max-width: 380px;
+            background: linear-gradient(135deg, #2b1b54 0%, #170f30 100%);
+            border: 3px solid #ffd166;
+            border-radius: 18px;
+            padding: 20px;
+            color: #fff;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+            text-align: center;
+            z-index: 100;
+        }
+        #memory-modal h2 { color: #ffd166; margin-top: 0; font-size: 20px; }
+        #memory-modal img { width: 100%; height: 140px; object-fit: cover; border-radius: 10px; margin: 10px 0; border: 1px solid #ffd166; }
+        #memory-modal p { font-size: 14px; line-height: 1.5; color: #e0e0e0; margin-bottom: 15px; }
+        #memory-modal button {
+            background-color: #ffd166; color: #170f30; font-weight: bold; font-size: 15px;
+            border: none; padding: 10px 22px; border-radius: 20px; cursor: pointer;
+            box-shadow: 0 4px 10px rgba(255, 209, 102, 0.4);
+        }
     </style>
 </head>
 <body>
+
     <div id="game-container"></div>
+
+    <!-- Interface Pop-up de Memória / Exploração -->
+    <div id="memory-modal">
+        <h2 id="modal-title">Título</h2>
+        <img id="modal-img" src="" alt="Lembrança">
+        <p id="modal-desc">Descrição</p>
+        <button onclick="closeModal()">Guardar no Álbum ✨</button>
+    </div>
+
     <script>
         const config = {
             type: Phaser.AUTO,
-            scale: {
-                mode: Phaser.Scale.RESIZE,
-                parent: 'game-container',
-                width: '100%',
-                height: '100%'
-            },
-            backgroundColor: '#2d5a27',
-            physics: {
-                default: 'arcade',
-                arcade: { debug: false }
-            },
+            scale: { mode: Phaser.Scale.RESIZE, parent: 'game-container', width: '100%', height: '100%' },
+            backgroundColor: '#1d2a10',
+            physics: { default: 'arcade', arcade: { debug: false } },
             scene: { preload: preload, create: create, update: update }
         };
 
         const game = new Phaser.Game(config);
-        let player, cursors, actionBtn, dialogueBox, dialogueText;
+        let player, cursors, actionBtn;
         let isPointerDown = false, pointerOrigin = { x: 0, y: 0 }, moveVector = { x: 0, y: 0 };
-        let activeInteractable = null;
+        let activeLocation = null;
+
+        const LOCATIONS = [
+            {
+                x: 400, y: 700,
+                title: "🌸 O Jardim da Clara",
+                desc: "Um canteiro repleto de flores preparadas com carinho para receber a chegada da irmãzinha Olívia!",
+                img: "https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?w=500&auto=format&fit=crop&q=60"
+            },
+            {
+                x: 1200, y: 700,
+                title: "🏸 O Baú do Tio Júlio",
+                desc: "Você encontrou o baú de aventuras da família com raquetes e segredos para o próximo encontro!",
+                img: "https://images.unsplash.com/photo-1511067007398-7e4b90cfa4bc?w=500&auto=format&fit=crop&q=60"
+            },
+            {
+                x: 800, y: 300,
+                title: "⭐ A Estrelinha na Janela",
+                desc: "A Estrelinha brilha no céu indicando que o amor da família já está completo e aguardando a Olívia!",
+                img: "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=500&auto=format&fit=crop&q=60"
+            }
+        ];
 
         function preload() {
-            // Carregando tileset do mapa e sprite animado
-            this.load.image('tiles', 'https://labs.phaser.io/assets/tilemaps/tiles/catastrophi_tiles.png');
-            this.load.spritesheet('player', 'https://labs.phaser.io/assets/sprites/spaceman.png', { frameWidth: 16, frameHeight: 16 });
+            // Textura real de gramado e spritesheet de personagem 2D
+            this.load.image('grass', 'https://labs.phaser.io/assets/textures/grass.png');
+            this.load.image('tree', 'https://labs.phaser.io/assets/sprites/tree-european.png');
+            this.load.spritesheet('hero', 'https://labs.phaser.io/assets/sprites/dude.png', { frameWidth: 32, frameHeight: 48 });
         }
 
         function create() {
             const scene = this;
             const WORLD_SIZE = 1600;
 
-            // 1. Configurar Limites do Mundo
             scene.physics.world.setBounds(0, 0, WORLD_SIZE, WORLD_SIZE);
 
-            // 2. Criar Chão Decorado (Grama e Caminhos)
-            let ground = scene.add.graphics();
-            ground.fillStyle(0x408035, 1);
-            ground.fillRect(0, 0, WORLD_SIZE, WORLD_SIZE);
+            // Chão com textura real de grama
+            scene.add.tileSprite(WORLD_SIZE/2, WORLD_SIZE/2, WORLD_SIZE, WORLD_SIZE, 'grass');
 
-            // Desenhar caminhos de terra
-            ground.fillStyle(0x8a6f47, 1);
-            ground.fillRect(200, 750, 1200, 100); // Estrada principal
-            ground.fillRect(750, 200, 100, 1200); // Cruzamento
-
-            // Detalhes de flores/árvores espalhadas pelo mapa
-            for (let i = 0; i < 150; i++) {
-                let x = Phaser.Math.Between(50, WORLD_SIZE - 50);
-                let y = Phaser.Math.Between(50, WORLD_SIZE - 50);
-                let size = Phaser.Math.Between(15, 35);
-                scene.add.circle(x, y, size, 0x1e4219, 0.6); // Árvores/Arbustos
+            // Árvores decorativas pelo cenário
+            for (let i = 0; i < 40; i++) {
+                let x = Phaser.Math.Between(100, WORLD_SIZE - 100);
+                let y = Phaser.Math.Between(100, WORLD_SIZE - 100);
+                let tree = scene.add.image(x, y, 'tree').setScale(0.8);
+                tree.setDepth(y);
             }
 
-            // 3. Pontos de Interesse (Locais para Explorar no Mapa)
-            const locais = [
-                { x: 300, y: 700, title: "🌸 O Jardim da Memória", text: "Você encontrou uma flor plantada no dia em que souberam da chegada da Olívia!" },
-                { x: 1300, y: 700, title: "📜 O Baú do Tio Júlio", text: "Um par de raquetes de BitTennis e a chave de um carro... O que será isso?" },
-                { x: 800, y: 300, title: "⭐ A Estrela Guia", text: "A Estrelinha brilha intensamente na janela! Ela está esperando por você..." }
-            ];
-
-            locais.forEach(loc => {
-                let zone = scene.add.circle(loc.x, loc.y, 40, 0xffd166, 0.4);
-                scene.add.text(loc.x, loc.y - 50, loc.title, { fontSize: '14px', fill: '#ffffff', backgroundColor: '#000000aa', padding: {x:6, y:3} }).setOrigin(0.5);
-                scene.tweens.add({ targets: zone, alpha: { from: 0.2, to: 0.7 }, scale: { from: 0.9, to: 1.1 }, duration: 800, yoyo: true, repeat: -1 });
-                zone.data = loc;
+            // Marcadores dos Pontos de Interesse (Locais para explorar)
+            LOCATIONS.forEach(loc => {
+                let zone = scene.add.circle(loc.x, loc.y, 30, 0xffd166, 0.5);
+                scene.add.text(loc.x, loc.y - 45, loc.title, { font: 'bold 14px Arial', fill: '#ffffff', backgroundColor: '#000000aa', padding: {x:8, y:4} }).setOrigin(0.5);
+                scene.tweens.add({ targets: zone, scale: { from: 0.8, to: 1.2 }, alpha: { from: 0.3, to: 0.8 }, duration: 800, yoyo: true, repeat: -1 });
             });
 
-            // 4. Jogador
-            player = scene.physics.add.sprite(800, 800, 'player', 0);
-            player.setScale(2.5);
-            player.setCollideWorldBounds(true);
+            // Personagem Principal
+            player = scene.physics.add.sprite(800, 800, 'hero', 4);
+            player.setScale(1.3).setCollideWorldBounds(true);
+            player.setDepth(800);
 
-            // Animações
-            scene.anims.create({ key: 'walk', frames: scene.anims.generateFrameNumbers('player', { start: 0, end: 3 }), frameRate: 8, repeat: -1 });
+            // Animações de caminhada
+            scene.anims.create({ key: 'left', frames: scene.anims.generateFrameNumbers('hero', { start: 0, end: 3 }), frameRate: 10, repeat: -1 });
+            scene.anims.create({ key: 'right', frames: scene.anims.generateFrameNumbers('hero', { start: 5, end: 8 }), frameRate: 10, repeat: -1 });
+            scene.anims.create({ key: 'turn', frames: [ { key: 'hero', frame: 4 } ], frameRate: 20 });
 
-            // 5. Câmera Seguindo o Jogador
+            // Câmera Suave
             scene.cameras.main.setBounds(0, 0, WORLD_SIZE, WORLD_SIZE);
-            scene.cameras.main.startFollow(player, true, 0.08, 0.08);
+            scene.cameras.main.startFollow(player, true, 0.1, 0.1);
 
-            // 6. UI Fixa na Tela (Botão e Diálogos)
-            setupUI(scene, locais);
+            // Botão de Interagir na tela (Mobile/PC)
+            actionBtn = scene.add.container(scene.cameras.main.width - 80, scene.cameras.main.height - 80).setScrollFactor(0);
+            let btnBg = scene.add.circle(0, 0, 35, 0xffd166).setInteractive();
+            let btnText = scene.add.text(0, 0, '🔍', { fontSize: '28px' }).setOrigin(0.5);
+            actionBtn.add([btnBg, btnText]);
+            actionBtn.setVisible(false);
+
+            btnBg.on('pointerdown', () => {
+                if (activeLocation) openModal(activeLocation);
+            });
 
             cursors = scene.input.keyboard.createCursorKeys();
 
-            // Touch Joystick de Campo
+            // Touch Joystick
             scene.input.on('pointerdown', (p) => {
-                if (p.x < scene.cameras.main.width - 100) {
+                if (p.x < scene.cameras.main.width - 120 && document.getElementById('memory-modal').style.display !== 'block') {
                     isPointerDown = true;
                     pointerOrigin = { x: p.x, y: p.y };
                 }
@@ -113,74 +157,53 @@
             scene.input.on('pointerup', () => { isPointerDown = false; moveVector = { x: 0, y: 0 }; });
         }
 
-        function setupUI(scene, locais) {
-            // Container da UI preso à Câmera
-            let uiContainer = scene.add.container(0, 0).setScrollFactor(0);
-
-            // Botão de Interagir
-            actionBtn = scene.add.container(scene.cameras.main.width - 70, scene.cameras.main.height - 70).setScrollFactor(0);
-            let btnBg = scene.add.circle(0, 0, 35, 0xffd166).setInteractive();
-            let btnText = scene.add.text(0, 0, '🔍', { fontSize: '28px' }).setOrigin(0.5);
-            actionBtn.add([btnBg, btnText]);
-            actionBtn.setVisible(false);
-
-            // Caixa de Diálogo
-            dialogueBox = scene.add.container(scene.cameras.main.width / 2, scene.cameras.main.height - 120).setScrollFactor(0);
-            let bgBox = scene.add.rectangle(0, 0, 340, 140, 0x0d0e15, 0.95).setStrokeStyle(3, 0xffd166).setInteractive();
-            dialogueText = scene.add.text(-150, -50, '', { fontSize: '13px', fill: '#ffffff', wordWrap: { width: 300 } });
-            let closeText = scene.add.text(0, 45, '[ Toque para fechar ]', { fontSize: '11px', fill: '#ffd166' }).setOrigin(0.5);
-            dialogueBox.add([bgBox, dialogueText, closeText]);
-            dialogueBox.setVisible(false);
-
-            btnBg.on('pointerdown', () => {
-                if (activeInteractable) {
-                    dialogueText.setText(`${activeInteractable.title}\n\n"${activeInteractable.text}"`);
-                    dialogueBox.setVisible(true);
-                }
-            });
-
-            bgBox.on('pointerdown', () => dialogueBox.setVisible(false));
-            uiContainer.add([actionBtn, dialogueBox]);
-        }
-
         function update() {
-            const speed = 200;
+            player.setDepth(player.y);
+            const speed = 180;
             player.setVelocity(0);
 
-            if (!dialogueBox.visible) {
-                let moving = false;
-                if (cursors.left.isDown) { player.setVelocityX(-speed); moving = true; }
-                else if (cursors.right.isDown) { player.setVelocityX(speed); moving = true; }
-                if (cursors.up.isDown) { player.setVelocityY(-speed); moving = true; }
-                else if (cursors.down.isDown) { player.setVelocityY(speed); moving = true; }
+            let isModalOpen = document.getElementById('memory-modal').style.display === 'block';
 
-                if (isPointerDown) {
-                    player.setVelocityX(moveVector.x * speed);
-                    player.setVelocityY(moveVector.y * speed);
-                    moving = true;
+            if (!isModalOpen) {
+                if (cursors.left.isDown || moveVector.x < -0.3) {
+                    player.setVelocityX(-speed);
+                    player.anims.play('left', true);
+                } else if (cursors.right.isDown || moveVector.x > 0.3) {
+                    player.setVelocityX(speed);
+                    player.anims.play('right', true);
+                } else if (cursors.up.isDown || moveVector.y < -0.3) {
+                    player.setVelocityY(-speed);
+                    player.anims.play('left', true);
+                } else if (cursors.down.isDown || moveVector.y > 0.3) {
+                    player.setVelocityY(speed);
+                    player.anims.play('right', true);
+                } else {
+                    player.anims.play('turn');
                 }
-
-                if (moving) player.anims.play('walk', true);
-                else player.anims.stop();
             }
 
-            // Checar proximidade dos pontos de interesse
-            const locais = [
-                { x: 300, y: 700, title: "🌸 O Jardim da Memória", text: "Você encontrou uma flor plantada no dia em que souberam da chegada da Olívia!" },
-                { x: 1300, y: 700, title: "📜 O Baú do Tio Júlio", text: "Um par de raquetes de BitTennis e a chave de um carro... O que será isso?" },
-                { x: 800, y: 300, title: "⭐ A Estrela Guia", text: "A Estrelinha brilha intensamente! Ela mostra o caminho do amor que aguarda a Olívia..." }
-            ];
-
-            let nearAny = false;
-            locais.forEach(loc => {
+            // Detectar Proximidade
+            let near = false;
+            LOCATIONS.forEach(loc => {
                 let dist = Phaser.Math.Distance.Between(player.x, player.y, loc.x, loc.y);
                 if (dist < 60) {
-                    nearAny = true;
-                    activeInteractable = loc;
+                    near = true;
+                    activeLocation = loc;
                 }
             });
 
-            actionBtn.setVisible(nearAny);
+            actionBtn.setVisible(near && !isModalOpen);
+        }
+
+        function openModal(loc) {
+            document.getElementById('modal-title').innerText = loc.title;
+            document.getElementById('modal-desc').innerText = loc.desc;
+            document.getElementById('modal-img').src = loc.img;
+            document.getElementById('memory-modal').style.display = 'block';
+        }
+
+        function closeModal() {
+            document.getElementById('memory-modal').style.display = 'none';
         }
     </script>
 </body>
